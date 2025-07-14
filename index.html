@@ -12,7 +12,7 @@
     video, canvas {
       width: 640px;
       height: 480px;
-      transform: scaleX(-1); /* 鏡像にする */
+      transform: scaleX(-1);
       border: 1px solid #ccc;
     }
     #info {
@@ -23,17 +23,17 @@
   </style>
 </head>
 <body>
-  <h2>MediaPipe Tasks - 顔の3Dワールド座標2</h2>
+  <h2>MediaPipe Tasks - 顔の3Dワールド座標</h2>
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
   <div id="info">初期化中...</div>
 
-  <!-- MediaPipe Tasksのスクリプトをモジュールとして読み込む -->
   <script type="module">
     import {
       FaceLandmarker,
       FilesetResolver,
-      DrawingUtils
+      DrawingUtils,
+      FACE_LANDMARKS_TESSELATION
     } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 
     const video = document.getElementById("video");
@@ -41,22 +41,22 @@
     const ctx = canvas.getContext("2d");
     const info = document.getElementById("info");
 
-    // カメラ初期化
     async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 640, height: 480 },
-        audio: false
-      });
-      video.srcObject = stream;
-
-      return new Promise((resolve) => {
-        video.onloadedmetadata = () => {
-          resolve(video);
-        };
-      });
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: 640, height: 480 },
+          audio: false
+        });
+        video.srcObject = stream;
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => resolve(video);
+        });
+      } catch (error) {
+        info.textContent = "カメラにアクセスできません: " + error.message;
+        throw error;
+      }
     }
 
-    // メイン処理
     async function main() {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
@@ -87,14 +87,14 @@
         if (result.faceLandmarks && result.faceLandmarks.length > 0) {
           drawingUtils.drawConnectors(
             result.faceLandmarks[0],
-            FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+            FACE_LANDMARKS_TESSELATION,
             { color: "#00FF00", lineWidth: 1 }
           );
 
-          const landmark = result.faceLandmarks[0][1]; // ランドマーク1番：鼻先
+          const landmark = result.faceLandmarks[0][1]; // 鼻先
           const x = landmark.x.toFixed(4);
           const y = landmark.y.toFixed(4);
-          const z = landmark.z.toFixed(4); // mm単位に近い
+          const z = landmark.z.toFixed(4);
 
           info.textContent = `ワールド座標（鼻先）:\nX: ${x}\nY: ${y}\nZ: ${z}`;
         } else {
@@ -107,7 +107,11 @@
       requestAnimationFrame(processFrame);
     }
 
-    main();
+    // エラーも捕捉する
+    main().catch(err => {
+      console.error("エラー:", err);
+      info.textContent = "初期化中にエラー発生: " + err.message;
+    });
   </script>
 </body>
 </html>
