@@ -2,71 +2,112 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>MediaPipe ワールド座標</title>
+  <title>MediaPipe Tasks - 顔の3Dワールド座標</title>
   <style>
-    video {
-      transform: scaleX(-1); /* 鏡映像 */
+    body {
+      font-size: 18px;
+      text-align: center;
+      margin-top: 20px;
+    }
+    video, canvas {
       width: 640px;
       height: 480px;
+      transform: scaleX(-1); /* 鏡像にする */
+      border: 1px solid #ccc;
     }
-    #output {
-      font-size: 20px;
+    #info {
+      margin-top: 20px;
       white-space: pre-line;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h2>MediaPipe World Coordinates</h2>
-  <video id="video" autoplay muted playsinline></video>
-  <div id="output">読み込み中...</div>
+  <h2>MediaPipe Tasks - 顔の3Dワールド座標</h2>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="info">初期化中...</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <!-- MediaPipe Tasksのスクリプトをモジュールとして読み込む -->
+  <script type="module">
+    import {
+      FaceLandmarker,
+      FilesetResolver,
+      DrawingUtils
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 
-  <script>
-    const video = document.getElementById('video');
-    const output = document.getElementById('output');
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const info = document.getElementById("info");
 
-    const faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-    });
+    // カメラ初期化
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 640, height: 480 },
+        audio: false
+      });
+      video.srcObject = stream;
 
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true, // 目や唇など精密に
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
+      return new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          resolve(video);
+        };
+      });
+    }
 
-    faceMesh.onResults(results => {
-      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        output.textContent = "顔が検出されていません";
-        return;
-      }
+    // メイン処理
+    async function main() {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+      );
 
-      // 通常のランドマーク（normalized landmark）
-      const landmarks = results.multiFaceLandmarks[0];
+      const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/1/face_landmarker.task",
+          delegate: "GPU"
+        },
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+        numFaces: 1
+      });
 
-      // World座標（ただし、CDN版では使えない可能性あり）
-      const world = results.multiFaceWorldLandmarks?.[0];
+      await setupCamera();
+      video.play();
 
-      if (world) {
-        const nose = world[1]; // 鼻先（ランドマーク1番）
-        output.textContent =
-          `World座標（鼻先）:\nX: ${nose.x.toFixed(4)}\nY: ${nose.y.toFixed(4)}\nZ: ${nose.z.toFixed(4)}`;
-      } else {
-        output.textContent = "world_landmarks は利用できません（バージョン制限の可能性）";
-      }
-    });
+      const drawingUtils = new DrawingUtils(canvas);
+      const processFrame = async () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawingUtils.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        await faceMesh.send({image: video});
-      },
-      width: 640,
-      height: 480
-    });
-    camera.start();
+        const now = Date.now();
+        const result = faceLandmarker.detectForVideo(video, now);
+
+        if (result.faceLandmarks && result.faceLandmarks.length > 0) {
+          drawingUtils.drawConnectors(
+            result.faceLandmarks[0],
+            FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+            { color: "#00FF00", lineWidth: 1 }
+          );
+
+          const landmark = result.faceLandmarks[0][1]; // ランドマーク1番：鼻先
+          const x = landmark.x.toFixed(4);
+          const y = landmark.y.toFixed(4);
+          const z = landmark.z.toFixed(4); // mm単位に近い
+
+          info.textContent = `ワールド座標（鼻先）:\nX: ${x}\nY: ${y}\nZ: ${z}`;
+        } else {
+          info.textContent = "顔が見つかりません";
+        }
+
+        requestAnimationFrame(processFrame);
+      };
+
+      requestAnimationFrame(processFrame);
+    }
+
+    main();
   </script>
 </body>
 </html>
