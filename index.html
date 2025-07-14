@@ -1,105 +1,77 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>MediaPipe Tasks - 顔の3Dワールド座標</title>
-  <style>
-    body { text-align: center; font-size: 18px; margin-top: 20px; }
-    video, canvas {
-      width: 640px; height: 480px;
-      transform: scaleX(-1);
-      border: 1px solid #ccc;
-    }
-    #info {
-      margin-top: 20px;
-      font-weight: bold;
-      white-space: pre-line;
-    }
-  </style>
+<head><meta charset="UTF-8"><title>顔の3Dワールド座標</title>
+<style>
+ body{text-align:center;font-size:18px;margin-top:20px}
+ video,canvas{width:640px;height:480px;transform:scaleX(-1);border:1px solid #ccc}
+ #info{margin-top:20px;font-weight:bold;white-space:pre-line}
+</style>
 </head>
 <body>
-  <h2>MediaPipe Tasks - 顔の3Dワールド座標2</h2>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
-  <div id="info">初期化中...</div>
+<h2>MediaPipe Tasks - 顔の3Dワールド座標</h2>
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+<div id="info">初期化中...</div>
+<script type="module">
+import {
+  FaceLandmarker, FilesetResolver, DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
-  <script type="module">
-    import {
-      FaceLandmarker,
-      FilesetResolver,
-      DrawingUtils
-    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0"; // ✅ 安定バージョンを指定
+const video = document.getElementById("video"),
+      canvas = document.getElementById("canvas"),
+      ctx = canvas.getContext("2d"),
+      info = document.getElementById("info");
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const info = document.getElementById("info");
-
-    async function setupCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: 640, height: 480 },
-          audio: false
-        });
-        video.srcObject = stream;
-        return new Promise((resolve) => {
-          video.onloadedmetadata = () => resolve(video);
-        });
-      } catch (err) {
-        info.textContent = "カメラ取得エラー: " + err.message;
-        throw err;
-      }
-    }
-
-    async function main() {
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-      );
-
-      const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/1/face_landmarker.task", // ✅ 正しいURL
-          delegate: "GPU"
-        },
-        outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: false,
-        numFaces: 1
-      });
-
-      await setupCamera();
-      video.play();
-
-      const drawingUtils = new DrawingUtils(canvas);
-
-      const process = async () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawingUtils.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const now = Date.now();
-        const result = faceLandmarker.detectForVideo(video, now);
-
-        if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-          const nose = result.faceLandmarks[0][1]; // 鼻先
-          const x = nose.x.toFixed(4);
-          const y = nose.y.toFixed(4);
-          const z = nose.z.toFixed(4);
-
-          info.textContent = `ワールド座標（鼻先）:\nX: ${x}\nY: ${y}\nZ: ${z}`;
-        } else {
-          info.textContent = "顔が見つかりません";
-        }
-
-        requestAnimationFrame(process);
-      };
-
-      requestAnimationFrame(process);
-    }
-
-    main().catch(err => {
-      console.error("初期化エラー:", err);
-      info.textContent = "初期化エラー: " + err.message;
+async function setupCamera(){
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:"user", width:640, height:480 }, audio:false
     });
-  </script>
+    video.srcObject = stream;
+    return new Promise(resolve => video.onloadedmetadata = ()=>resolve(video));
+  } catch(err){
+    info.textContent = "カメラ取得エラー: "+err.message;
+    throw err;
+  }
+}
+
+async function main(){
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+  );
+
+  const faceLandmarker = await FaceLandmarker.createFromOptions(vision,{
+    baseOptions:{
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      delegate:"GPU"
+    },
+    outputFaceBlendshapes:false,
+    outputFacialTransformationMatrixes:false,
+    numFaces:1
+  });
+
+  await setupCamera();
+  video.play();
+
+  const drawingUtils = new DrawingUtils(canvas);
+  const process = async()=> {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawingUtils.drawImage(video,0,0,canvas.width,canvas.height);
+    const res = faceLandmarker.detectForVideo(video,Date.now());
+    if(res.faceLandmarks?.length){
+      const nose = res.faceLandmarks[0][1];
+      info.textContent = `ワールド座標（鼻先）:\nX:${nose.x.toFixed(4)}\nY:${nose.y.toFixed(4)}\nZ:${nose.z.toFixed(4)}`;
+    } else info.textContent = "顔が見つかりません";
+    requestAnimationFrame(process);
+  };
+  requestAnimationFrame(process);
+}
+
+main().catch(err=>{
+  console.error("初期化エラー:",err);
+  info.textContent = "初期化エラー: "+err.message;
+});
+</script>
 </body>
 </html>
