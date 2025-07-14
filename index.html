@@ -2,35 +2,25 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>Face Mesh + Z 座標表示</title>
+  <title>Face Mesh + Z 表示 on GitHub</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; }
-    video, canvas {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      object-fit: cover;
-    }
-    .depth {
-      position: absolute;
-      color: white;
-      font: 10px sans-serif;
-      pointer-events: none;
-    }
+    body{margin:0;overflow:hidden}
+    video,canvas{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
   </style>
 </head>
 <body>
   <video id="input_video" autoplay playsinline></video>
-  <canvas id="output_canvas"></canvas>
+  <canvas id="overlay"></canvas>
   <script>
     const video = document.getElementById('input_video');
-    const canvas = document.getElementById('output_canvas');
+    const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
 
     const faceMesh = new FaceMesh({
-      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
     });
     faceMesh.setOptions({
       selfieMode: true,
@@ -41,37 +31,28 @@
     });
     faceMesh.onResults(onResults);
 
-    const camera = new Camera(video, {
+    new Camera(video, {
       onFrame: async () => await faceMesh.send({image: video}),
       width: 640, height: 480
-    });
-    camera.start();
+    }).start();
 
-    function onResults(results) {
+    function onResults(res) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.save();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(res.image, 0,0);
 
-      if (results.multiFaceLandmarks && results.multiFaceWorldLandmarks) {
-        const landmarks2D = results.multiFaceLandmarks[0];
-        const landmarks3D = results.multiFaceWorldLandmarks[0];
-
-        // メッシュを描画
-        drawConnectors(ctx, landmarks2D, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-        drawLandmarks(ctx, landmarks2D, {color: '#FF0000', radius: 1});
-
+      const lm2 = res.multiFaceLandmarks?.[0];
+      const lm3 = res.multiFaceWorldLandmarks?.[0];
+      if (lm2 && lm3) {
+        drawConnectors(ctx, lm2, FACEMESH_TESSELATION, {color:'#C0C0C070'});
+        drawLandmarks(ctx, lm2, {color:'#FF0000', radius:1});
         ctx.font = '10px sans-serif';
         ctx.fillStyle = 'yellow';
-
-        // 各ランドマークに z 座標を描画
-        landmarks2D.forEach((lm2, i) => {
-          const lm3 = landmarks3D[i];
-          const x = lm2.x * canvas.width;
-          const y = lm2.y * canvas.height;
-          const z = lm3.z;
-          ctx.fillText(z.toFixed(3), x + 2, y - 2);
+        lm2.forEach((pt, i) => {
+          const z = lm3[i].z;
+          ctx.fillText(z.toFixed(3), pt.x*canvas.width + 2, pt.y*canvas.height - 2);
         });
       }
       ctx.restore();
