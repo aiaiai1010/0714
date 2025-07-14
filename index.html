@@ -7,14 +7,18 @@
     body { text-align: center; font-size: 18px; margin-top: 20px; }
     video, canvas {
       width: 640px; height: 480px;
-      transform: scaleX(-1);
+      transform: scaleX(-1); /* 鏡映像 */
       border: 1px solid #ccc;
     }
-    #info { margin-top: 20px; font-weight: bold; white-space: pre-line; }
+    #info {
+      margin-top: 20px;
+      font-weight: bold;
+      white-space: pre-line;
+    }
   </style>
 </head>
 <body>
-  <h2>MediaPipe Tasks - 顔の3Dワールド座標2</h2>
+  <h2>MediaPipe Tasks - 顔の3Dワールド座標</h2>
   <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
   <div id="info">初期化中...</div>
@@ -55,7 +59,7 @@
       const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/1/face_landmarker.task",
+            "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float32/latest/face_landmarker.task", // ✅ 正しいURLに修正済
           delegate: "GPU"
         },
         outputFaceBlendshapes: false,
@@ -76,9 +80,13 @@
         const result = faceLandmarker.detectForVideo(video, now);
 
         if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-          // 鼻先の座標（ランドマーク1番）
-          const lm = result.faceLandmarks[0][1];
-          info.textContent = `ワールド座標（鼻先）:\nX: ${lm.x.toFixed(4)}\nY: ${lm.y.toFixed(4)}\nZ: ${lm.z.toFixed(4)}`;
+          // 鼻先（ランドマーク1番）の座標を取得
+          const nose = result.faceLandmarks[0][1];
+          const x = nose.x.toFixed(4);
+          const y = nose.y.toFixed(4);
+          const z = nose.z.toFixed(4);
+
+          info.textContent = `ワールド座標（鼻先）:\nX: ${x}\nY: ${y}\nZ: ${z}`;
         } else {
           info.textContent = "顔が見つかりません";
         }
@@ -90,7 +98,7 @@
     }
 
     main().catch(err => {
-      console.error("エラー:", err);
+      console.error("初期化エラー:", err);
       info.textContent = "初期化エラー: " + err.message;
     });
   </script>
