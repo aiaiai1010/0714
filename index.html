@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>MediaPipe Face Mesh Z座標表示デモ</title>
+  <title>MediaPipe Face Mesh Z座標（相対）</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -24,7 +24,6 @@
       font-size: 16px;
       font-family: monospace;
       border-radius: 5px;
-      line-height: 1.4;
     }
   </style>
 </head>
@@ -47,8 +46,7 @@
       maxNumFaces: 1,
       refineLandmarks: true,
       minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-      enableWorldLandmarks: true  // ← ワールド座標を出力するために必須
+      minTrackingConfidence: 0.5
     });
     faceMesh.onResults(onResults);
 
@@ -67,28 +65,19 @@
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
       if (results.multiFaceLandmarks) {
-        for (const lm of results.multiFaceLandmarks) {
-          drawConnectors(ctx, lm, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-          drawConnectors(ctx, lm, FACEMESH_RIGHT_EYE, {color: '#FF3030'});
-          drawConnectors(ctx, lm, FACEMESH_LEFT_EYE, {color: '#30FF30'});
-          drawConnectors(ctx, lm, FACEMESH_FACE_OVAL, {color: '#E0E0E0'});
-          drawLandmarks(ctx, lm, {color: '#FF0000', radius: 1});
-        }
-      }
+        const landmarks = results.multiFaceLandmarks[0];
+        drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+        drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {color: '#FF3030'});
+        drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {color: '#30FF30'});
+        drawConnectors(ctx, landmarks, FACEMESH_FACE_OVAL, {color: '#E0E0E0'});
+        drawLandmarks(ctx, landmarks, {color: '#FF0000', radius: 1});
 
-      if (results.multiFaceWorldLandmarks) {
-        const w = results.multiFaceWorldLandmarks[0];
-        const nose = w[1]; // ランドマーク #1 は鼻先
-        let text = `鼻先 Z: ${nose.z.toFixed(4)}`;
-        text += '\n--- 全ワールドZ座標（最初の5個） ---\n';
-        for (let i = 0; i < Math.min(5, w.length); i++) {
-          text += `#${i}: ${w[i].z.toFixed(4)}  `;
-        }
-        zDisplay.textContent = text;
-        console.log('World landmarks array:', w);
+        const noseZ = landmarks[1].z; // 鼻先（相対座標）
+        zDisplay.textContent = `相対Z座標（鼻）: ${noseZ.toFixed(4)}`;
       } else {
         zDisplay.textContent = 'Z座標: 読み取り中…';
       }
+
       ctx.restore();
     }
   </script>
